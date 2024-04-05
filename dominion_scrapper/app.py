@@ -1,5 +1,9 @@
+from dominion_scrapper.corelibs.scrapper import Scrapper
+
+
 def main():
-    pass
+    scrapper = Scrapper()
+    scrapper.run()
 
 
 if __name__ == "__main__":
