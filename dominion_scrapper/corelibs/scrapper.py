@@ -57,6 +57,46 @@ class Scrapper:
                 return [row.find('td').find('a').get('href') for row in table.find_all('tr')[1:] if
                         row.find('td').find('a')]
 
+    def get_costs(self, cell):
+        results = []
+        cost = {}
+        images = cell.find_all('img')
+        for img in images:
+            alt = img.get('alt').strip()
+            if '$' in alt and all(subs not in alt for subs in ['star', 'plus']):
+                cost['treasure'] = {
+                    'symbol': '$',
+                    'value': int(alt[1:])
+                }
+                results.append(cost)
+            elif 'P' in alt:
+                cost['potion'] = {
+                    'symbol': 'P',
+                    'value': 0
+                }
+                results.append(cost)
+            elif 'D' in alt:
+                cost['debt'] = {
+                    'symbol': 'D',
+                    'value': int(alt.replace('D', ''))
+                }
+                results.append(cost)
+            elif '$' in alt and 'star' in alt:
+                cost['star'] = {
+                    'symbol': '$',
+                    'value': int(alt.replace('$', '').replace('star', '')),
+                    'star': '*',
+                }
+                results.append(cost)
+            elif '$' in alt and 'plus' in alt:
+                cost['plus'] = {
+                    'symbol': '$',
+                    'value': int(alt.replace('$', '').replace('plus', '')),
+                    'plus': '+',
+                }
+                results.append(cost)
+        return results
+
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
         if soup:
@@ -67,10 +107,11 @@ class Scrapper:
                 for row in rows[1:]:
                     cells = row.find_all(['th', 'td'])
                     row_data = [cell.get_text(strip=True) for cell in cells]
+                    costs = self.get_costs(cells[3])
                     card = {
                         'name': row_data[0].strip(),
-                        'type': row_data[2].strip(),
-                        'cost': row_data[3].strip(),
+                        'types': [substring.strip() for substring in row_data[2].split('-')],
+                        'costs': costs,
                         'text': row_data[4].strip(),
                     }
                     card_url = cells[0].find('a').get('href')
