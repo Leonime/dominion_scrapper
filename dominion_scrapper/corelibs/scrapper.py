@@ -63,6 +63,8 @@ class Scrapper:
         images = cell.find_all('img')
         for img in images:
             alt = img.get('alt').strip()
+            img_url = img.get('src').strip()
+            img_url = img_url[1:] if img_url.startswith('/') else img_url
             if '$' in alt and all(subs not in alt for subs in ['star', 'plus']):
                 cost['treasure'] = {
                     'symbol': '$',
@@ -95,7 +97,26 @@ class Scrapper:
                     'plus': '+',
                 }
                 results.append(cost)
+            response = requests.get(self.base_url + img_url)
+            if response.status_code == 200:
+                folder_path = Path('output') / 'images' / 'assets'
+                folder_path.mkdir(parents=True, exist_ok=True)
+                folder_path = folder_path / f'{alt}.png'
+                if not folder_path.exists():
+                    with open(folder_path, 'wb') as f:
+                        f.write(response.content)
         return results
+
+    def get_image(self, cell, card):
+        images = cell.find('img')
+        img_url = images.get('src')
+        img_url = img_url[1:] if img_url.startswith('/') else img_url
+        response = requests.get(self.base_url + img_url)
+        if response.status_code == 200:
+            folder_path = Path('output') / 'images' / 'expansions' / f'{card['expansion']}'
+            folder_path.mkdir(parents=True, exist_ok=True)
+            with open(folder_path / f'{card["name"]}.jpg', 'wb') as f:
+                f.write(response.content)
 
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
@@ -133,10 +154,13 @@ class Scrapper:
                             'cards': []
                         }
                         card['edition'] = exp_edition
+                        card['expansion'] = exp_name
                         expansions[exp_name]['cards'].append(card)
                     else:
                         card['edition'] = exp_edition
+                        card['expansion'] = exp_name
                         expansions[exp_name]['cards'].append(card)
+                    self.get_image(cells[0], card)
                 folder_path = Path('output')
                 folder_path.mkdir(parents=True, exist_ok=True)
                 with open(folder_path / 'dominion_cards.json', 'w') as f:
