@@ -1,7 +1,9 @@
 import json
+from io import BytesIO
 from pathlib import Path
 
 import requests
+from PIL import Image
 from bs4 import BeautifulSoup
 
 
@@ -97,26 +99,32 @@ class Scrapper:
                     'plus': '+',
                 }
                 results.append(cost)
-            response = requests.get(self.base_url + img_url)
-            if response.status_code == 200:
-                folder_path = Path('output') / 'images' / 'assets'
-                folder_path.mkdir(parents=True, exist_ok=True)
-                folder_path = folder_path / f'{alt}.png'
-                if not folder_path.exists():
-                    with open(folder_path, 'wb') as f:
-                        f.write(response.content)
+            folder_path = Path('output') / 'images' / 'assets'
+            self.save_image(alt, img_url, folder_path)
         return results
 
-    def get_image(self, cell, card):
-        images = cell.find('img')
-        img_url = images.get('src')
-        img_url = img_url[1:] if img_url.startswith('/') else img_url
+    def save_image(self, alt, img_url, folder_path):
         response = requests.get(self.base_url + img_url)
         if response.status_code == 200:
-            folder_path = Path('output') / 'images' / 'expansions' / f'{card['expansion']}'
+            img_data = BytesIO(response.content)
+            img = Image.open(img_data)
+            width = img.width
             folder_path.mkdir(parents=True, exist_ok=True)
-            with open(folder_path / f'{card["name"]}.jpg', 'wb') as f:
-                f.write(response.content)
+            file_name = f'{alt}_{width}px.png'
+            folder_path = folder_path / file_name
+            if not folder_path.exists():
+                with open(folder_path, 'wb') as f:
+                    f.write(response.content)
+                    return file_name
+        return ''
+
+    def get_image(self, cell, card):
+        image = cell.find('img')
+        alt = image.get('alt').strip()
+        img_url = image.get('src')
+        img_url = img_url[1:] if img_url.startswith('/') else img_url
+        folder_path = Path('output') / 'images' / 'expansions' / f'{card['expansion']}'
+        return self.save_image(alt, img_url, folder_path)
 
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
