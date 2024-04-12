@@ -115,7 +115,7 @@ class Scrapper:
             if not folder_path.exists():
                 with open(folder_path, 'wb') as f:
                     f.write(response.content)
-                    return file_name
+            return file_name
         return ''
 
     def get_image(self, cell, card):
@@ -125,6 +125,22 @@ class Scrapper:
         img_url = img_url[1:] if img_url.startswith('/') else img_url
         folder_path = Path('output') / 'images' / 'expansions' / f'{card['expansion']}'
         return self.save_image(alt, img_url, folder_path)
+
+    def clean_text(self, cell):
+        images = cell.find_all('img')
+        raw_text = cell.prettify()
+        if images:
+            for img in images:
+                alt = img.get('alt').strip()
+                img_url = img.get('src').strip()
+                img_url = img_url[1:] if img_url.startswith('/') else img_url
+                folder_path = Path('output') / 'images' / 'assets'
+                image = self.save_image(alt, img_url, folder_path)
+                raw_img = img.prettify() if img else None
+                raw_text = raw_text.replace(raw_img, f'{{{{{image}}}}} ')
+        soup = BeautifulSoup(raw_text, 'html.parser')
+        td = soup.find('td')
+        return td.get_text(strip=True)
 
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
@@ -137,11 +153,12 @@ class Scrapper:
                     cells = row.find_all(['th', 'td'])
                     row_data = [cell.get_text(strip=True) for cell in cells]
                     costs = self.get_costs(cells[3])
+                    text = self.clean_text(cells[4])
                     card = {
                         'name': row_data[0].strip(),
                         'types': [substring.strip() for substring in row_data[2].split('-')],
                         'costs': costs,
-                        'text': row_data[4].strip(),
+                        'text': text,
                     }
                     card_url = cells[0].find('a').get('href')
 
