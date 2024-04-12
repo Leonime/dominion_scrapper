@@ -1,10 +1,12 @@
 import json
+import sys
 from io import BytesIO
 from pathlib import Path
 
 import requests
 from PIL import Image
 from bs4 import BeautifulSoup
+from colorama import Fore, Style
 
 
 class Scrapper:
@@ -176,6 +178,14 @@ class Scrapper:
         }
         return text
 
+    def progress(self, card, start, end):
+        done = int(30 * start / end)
+        sys.stdout.write(
+            f'\r[{Fore.GREEN + ("█" * done)}'
+            f'{Fore.BLACK + ("█" * (30 - done)) + Style.RESET_ALL}]'
+            f' scraping {start} of {end} currently: "{card}"')
+        sys.stdout.flush()
+
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
         if soup:
@@ -183,7 +193,8 @@ class Scrapper:
             if table:
                 rows = table.find_all('tr')
                 expansions = {}
-                for row in rows[1:]:
+                total = len(rows[1:])
+                for i, row in enumerate(rows[1:]):
                     cells = row.find_all(['th', 'td'])
                     row_data = [cell.get_text(strip=True) for cell in cells]
                     costs = self.get_costs(cells[3])
@@ -196,7 +207,7 @@ class Scrapper:
                     }
                     card_url = cells[0].find('a').get('href')
 
-                    print(card['name'])
+                    self.progress(card['name'], i + 1, total)
                     languages = self.get_card_languages(card_url)
                     if languages:
                         card['languages'] = languages
