@@ -23,32 +23,37 @@ class Scrapper:
         soup = self.get_soup(url)
         languages = {}
         if soup:
-            table = soup.find('table', {'class': 'wikitable mw-collapsible autocollapse'})
-            if table:
-                rows = table.find_all('tr')
-                i_lan, i_name, i_text = None, None, None
-                for i, cell in enumerate(rows[0].find_all('th')):
-                    if cell.get_text(strip=True) == 'Language':
-                        i_lan = i
-                    if cell.get_text(strip=True) == 'Name':
-                        i_name = i
-                    if cell.get_text(strip=True) == 'Text':
-                        i_text = i
+            tables = soup.find_all('table', {'class': 'wikitable'})
+            if tables:
+                for table in tables:
+                    rows = table.find_all('tr')
+                    i_lan, i_name, i_text = None, None, None
+                    match = 0
+                    for i, cell in enumerate(rows[0].find_all('th')):
+                        if cell.get_text(strip=True) == 'Language':
+                            match += 1
+                            i_lan = i
+                        if cell.get_text(strip=True) == 'Name':
+                            match += 1
+                            i_name = i
+                        if cell.get_text(strip=True) == 'Text':
+                            match += 1
+                            i_text = i
 
-                for row in rows[1:]:
-                    if i_lan is not None and i_name is not None and i_text is not None:
-                        cells = row.find_all(['th', 'td'])
-                        row_data = [cell.get_text(strip=True) for cell in cells]
-                        if row_data and len(row_data) > i_text:
-                            language = row_data[i_lan].strip()
-                            if language not in languages:
-                                languages[language] = {
-                                    'language': row_data[0].strip(),
-                                }
-                            languages[language]['name'] = row_data[i_name].strip()
-                            languages[language]['text'] = self.clean_text(cells[i_text])
-                    else:
+                    if match != 3:
                         continue
+                    if i_lan is not None and i_name is not None and i_text is not None:
+                        for row in rows[1:]:
+                            cells = row.find_all(['th', 'td'])
+                            row_data = [cell.get_text(strip=True) for cell in cells]
+                            if row_data and len(row_data) > i_text:
+                                language = row_data[i_lan].strip()
+                                if language not in languages:
+                                    languages[language] = {
+                                        'language': row_data[0].strip(),
+                                    }
+                                languages[language]['name'] = row_data[i_name].strip()
+                                languages[language]['text'] = self.clean_text(cells[i_text])
         return languages
 
     def get_expansions_urls(self):
