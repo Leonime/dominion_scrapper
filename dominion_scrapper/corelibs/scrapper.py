@@ -46,7 +46,7 @@ class Scrapper:
                                     'language': row_data[0].strip(),
                                 }
                             languages[language]['name'] = row_data[i_name].strip()
-                            languages[language]['text'] = row_data[i_text].strip()
+                            languages[language]['text'] = self.clean_text(cells[i_text])
                     else:
                         continue
         return languages
@@ -64,25 +64,32 @@ class Scrapper:
         cost = {}
         images = cell.find_all('img')
         for img in images:
-            alt = img.get('alt').strip()
-            img_url = img.get('src').strip()
-            img_url = img_url[1:] if img_url.startswith('/') else img_url
+            alt, folder_path, image = self.get_image_data(img)
             if '$' in alt and all(subs not in alt for subs in ['star', 'plus']):
                 cost['treasure'] = {
                     'symbol': '$',
-                    'value': int(alt[1:])
+                    'value': int(alt[1:]),
+                    'alt': alt,
+                    'image': image,
+                    'folder_path': str(folder_path)
                 }
                 results.append(cost)
             elif 'P' in alt:
                 cost['potion'] = {
                     'symbol': 'P',
-                    'value': 0
+                    'value': 0,
+                    'alt': alt,
+                    'image': image,
+                    'folder_path': str(folder_path)
                 }
                 results.append(cost)
             elif 'D' in alt:
                 cost['debt'] = {
                     'symbol': 'D',
-                    'value': int(alt.replace('D', ''))
+                    'value': int(alt.replace('D', '')),
+                    'alt': alt,
+                    'image': image,
+                    'folder_path': str(folder_path)
                 }
                 results.append(cost)
             elif '$' in alt and 'star' in alt:
@@ -90,6 +97,9 @@ class Scrapper:
                     'symbol': '$',
                     'value': int(alt.replace('$', '').replace('star', '')),
                     'star': '*',
+                    'alt': alt,
+                    'image': image,
+                    'folder_path': str(folder_path)
                 }
                 results.append(cost)
             elif '$' in alt and 'plus' in alt:
@@ -97,11 +107,20 @@ class Scrapper:
                     'symbol': '$',
                     'value': int(alt.replace('$', '').replace('plus', '')),
                     'plus': '+',
+                    'alt': alt,
+                    'image': image,
+                    'folder_path': str(folder_path)
                 }
                 results.append(cost)
-            folder_path = Path('output') / 'images' / 'assets'
-            self.save_image(alt, img_url, folder_path)
         return results
+
+    def get_image_data(self, img):
+        alt = img.get('alt').strip()
+        img_url = img.get('src').strip()
+        img_url = img_url[1:] if img_url.startswith('/') else img_url
+        folder_path = Path('output') / 'images' / 'assets'
+        image = self.save_image(alt, img_url, folder_path)
+        return alt, folder_path, image
 
     def save_image(self, alt, img_url, folder_path):
         response = requests.get(self.base_url + img_url)
@@ -124,23 +143,33 @@ class Scrapper:
         img_url = image.get('src')
         img_url = img_url[1:] if img_url.startswith('/') else img_url
         folder_path = Path('output') / 'images' / 'expansions' / f'{card['expansion']}'
-        return self.save_image(alt, img_url, folder_path)
+        return {
+            'alt': alt,
+            'folder_path': str(folder_path),
+            'image': self.save_image(alt, img_url, folder_path)
+        }
 
     def clean_text(self, cell):
         images = cell.find_all('img')
         raw_text = cell.prettify()
+        images_list = []
         if images:
             for img in images:
-                alt = img.get('alt').strip()
-                img_url = img.get('src').strip()
-                img_url = img_url[1:] if img_url.startswith('/') else img_url
-                folder_path = Path('output') / 'images' / 'assets'
-                image = self.save_image(alt, img_url, folder_path)
+                alt, folder_path, image = self.get_image_data(img)
                 raw_img = img.prettify() if img else None
                 raw_text = raw_text.replace(raw_img, f'{{{{{image}}}}} ')
+                images_list.append({
+                    'image': image,
+                    'alt': alt,
+                    'folder_path': str(folder_path)
+                })
         soup = BeautifulSoup(raw_text, 'html.parser')
         td = soup.find('td')
-        return td.get_text(strip=True)
+        text = {
+            'text': td.get_text(strip=True).replace('}}', '}} '),
+            'images': images_list
+        }
+        return text
 
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
@@ -180,12 +209,13 @@ class Scrapper:
                         }
                         card['edition'] = exp_edition
                         card['expansion'] = exp_name
-                        expansions[exp_name]['cards'].append(card)
                     else:
                         card['edition'] = exp_edition
                         card['expansion'] = exp_name
-                        expansions[exp_name]['cards'].append(card)
-                    self.get_image(cells[0], card)
+                    image = self.get_image(cells[0], card)
+                    if image:
+                        card['image'] = image
+                    expansions[exp_name]['cards'].append(card)
                 folder_path = Path('output')
                 folder_path.mkdir(parents=True, exist_ok=True)
                 with open(folder_path / 'dominion_cards.json', 'w') as f:
