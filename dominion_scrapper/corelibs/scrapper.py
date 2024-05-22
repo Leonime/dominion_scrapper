@@ -186,9 +186,17 @@ class Scrapper:
             f' scraping {start} of {end} currently: "{card}"')
         sys.stdout.flush()
 
+    def get_effects(self, soup):
+        div_effects = soup.find('div', {'id': 'mw-content-text'})
+        if div_effects:
+            li_effects = div_effects.find_all('li')
+            if li_effects:
+                for li in li_effects:
+
     def get_cards(self):
         soup = self.get_soup('index.php/List_of_cards')
         if soup:
+            effects = self.get_effects(soup)
             table = soup.find('table', {'class': 'wikitable'})
             if table:
                 rows = table.find_all('tr')
